@@ -1,0 +1,9 @@
+unknwos user: , password: 123qwe
+message: file object
+unknwos user: hoogMEH, password: 123qwe
+message: file object
+unknwos user: seeb, password: meowmeow
+message: asdfasdf
+
+unknwos user: hello, password: meowmeow
+message: seeb

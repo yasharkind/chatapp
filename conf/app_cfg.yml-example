@@ -1,0 +1,9 @@
+server:
+  host:
+  port: 3000
+  mode: debug
+database:
+  mysql:
+    url: username:password@tcp(host:3306)/dbname
+    max_idle_conns: 5
+    max_open_conns: 0 
