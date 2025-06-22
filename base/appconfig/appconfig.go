@@ -11,6 +11,8 @@ type Config struct {
 		Host string `yaml:"host"`
 		Port int    `yaml:"port"`
 		Mode string `yaml:"mode"`
+		TLS  bool   `yaml:"tls"`
+		MessageLimit int `yaml:"message_limit"`
 	} `yaml:"server"`
 
 	DataBase struct {

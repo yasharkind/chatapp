@@ -18,7 +18,6 @@ import (
 )
 
 const messageFile = "messages.txt"
-const messageLimit = 500
 var users = map[string]string{
 	"hoogMEH": "meowmeow",
 	"MhZmn": "banana",
@@ -64,15 +63,22 @@ type Server struct {
 	mu sync.Mutex
 
 	messageService service.MessageService
+
+	config *appconfig.Config
 }
 
-func NewServer(cfg *appconfig.Config) *Server {
+func NewServer() *Server {
+	config, err := appconfig.NewConfig("conf/app_cfg.yml")
+	if err != nil {
+		fmt.Println("error loading config: ", err)
+	}
 	s := &Server{
+		config: config,
 		conns: make(map[*websocket.Conn]bool),
-		messageService: service.NewMessageService(cfg),
+		messageService: service.NewMessageService(config),
 	}
 
-	s.messageList = s.messageService.FindFromEnd(10)
+	s.messageList = s.messageService.FindFromEnd(s.config.Server.MessageLimit)
 //
 //	data, err := os.ReadFile(messageFile)
 //	if err == nil {
@@ -112,7 +118,7 @@ func (s *Server) handleWS(ws *websocket.Conn) {
 	var mslen = len(s.messageList)
 	var full_msg string = "["
 
-	if  mslen < messageLimit { slice = mslen } else { slice = messageLimit }
+	if  mslen < s.config.Server.MessageLimit { slice = mslen } else { slice = s.config.Server.MessageLimit }
 	for _, message := range s.messageList[mslen - slice:] {
 		marshaled, err := json.Marshal(message) 
 		if err != nil {
@@ -265,20 +271,19 @@ func main(){
 			next.ServeHTTP(w, r)
 		})
 	}
-	config, err := appconfig.NewConfig("conf/app_cfg.yml")
-	if err != nil {
-		fmt.Println("Error loading config: ", err)
-	}
-	server := NewServer(config)
+	server := NewServer()
 	http.Handle("/ws", websocket.Handler(server.handleWS))
 	http.Handle("/upload", corsMiddleware(http.HandlerFunc(server.handleUpload)))
 	http.Handle("/files/", corsMiddleware(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads")))))
 
 	http.Handle("/avatar/", corsMiddleware(http.StripPrefix("/avatar/", http.FileServer(http.Dir("avatars")))))
 
-	port := fmt.Sprintf(":%d", config.Server.Port)
+	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)
-	// http.ListenAndServeTLS(port, "fullchain.pem", "privkey.pem", nil)
-	
-	http.ListenAndServe(port, nil)
+
+	if server.config.Server.TLS {
+		http.ListenAndServeTLS(port, "fullchain.pem", "privkey.pem", nil)
+	} else {
+		http.ListenAndServe(port, nil)
+	}
 }

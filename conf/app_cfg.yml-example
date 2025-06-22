@@ -2,6 +2,8 @@ server:
   host:
   port: 3000
   mode: debug
+  tls: false
+  message_limit: 300
 database:
   mysql:
     url: username:password@tcp(host:3306)/dbname
