@@ -6,3 +6,4 @@ avatars/*
 conf/app_cfg.yml
 unknownusers.txt
 messages.txt
+/Makefile
