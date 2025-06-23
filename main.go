@@ -220,6 +220,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			Sender: savedmsg.Sender.Username,
 			Content: savedmsg.Content,
 			Time: savedmsg.Time.Format("15:04:03"),
+			Avatar: savedmsg.Sender.Avatar,
 		}
 		marshaled, err := json.Marshal(resMsg)
 		if err != nil {
