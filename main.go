@@ -18,47 +18,47 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-const messageFile = "messages.txt"
-var users = map[string]string{
-	"hoogMEH": "meowmeow",
-	"MhZmn": "banana",
-	"seeb": "baka",
-	"torob": "baka",
-	"theadonn": "denpa",
-	"*sneezes*": "oneeeeee",
-	"rad": "koko",
-	"yishay": "fishe",
-	"beh": "koishifumo",
-	"looghMEH": "ali.1385",
-	"Legendarybtw": "Pass138580",
-	"Marisha": "younes12",
-	"H3x7": "h3xanol",
-	"Adib": "?!?!?!?!",
-	"Yoi": "ioyyoi",
-	"qonoeba": "konobeba",
-}
+// const messageFile = "messages.txt"
+// var users = map[string]string{
+// 	"hoogMEH": "meowmeow",
+// 	"MhZmn": "banana",
+// 	"seeb": "baka",
+// 	"torob": "baka",
+// 	"theadonn": "denpa",
+// 	"*sneezes*": "oneeeeee",
+// 	"rad": "koko",
+// 	"yishay": "fishe",
+// 	"beh": "koishifumo",
+// 	"looghMEH": "ali.1385",
+// 	"Legendarybtw": "Pass138580",
+// 	"Marisha": "younes12",
+// 	"H3x7": "h3xanol",
+// 	"Adib": "?!?!?!?!",
+// 	"Yoi": "ioyyoi",
+// 	"qonoeba": "konobeba",
+// }
 
-func (s *Server) validateUser(username string, password string , content string) bool {
-	//validate user
-	fmt.Println(username, password)
-	dbUser, err := s.userService.FindByUsernameAndPassword(username, password)
-	if err != nil {
-		fmt.Println("validateUser error: ", err)
-	}
-	if dbUser == nil{
-		unknownUser := fmt.Sprintf("unknwos user: %s, password: %s\nmessage: %s", username, password,  content)
-		fmt.Println(unknownUser)
-		f, err := os.OpenFile("unknownuser.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err == nil {
-			f.WriteString(unknownUser + "\n")
-			f.Close()
-		} else {
-		fmt.Println("failed to write to file:", err)
-		}
-		return false
-	}
-	return true
-}
+// func (s *Server) validateUser(username string, password string , content string) bool {
+// 	//validate user
+// 	fmt.Println(username, password)
+// 	dbUser, err := s.userService.FindByUsernameAndPassword(username, password)
+// 	if err != nil {
+// 		fmt.Println("validateUser error: ", err)
+// 	}
+// 	if dbUser == nil{
+// 		unknownUser := fmt.Sprintf("unknwos user: %s, password: %s\nmessage: %s", username, password,  content)
+// 		fmt.Println(unknownUser)
+// 		f, err := os.OpenFile("unknownuser.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+// 		if err == nil {
+// 			f.WriteString(unknownUser + "\n")
+// 			f.Close()
+// 		} else {
+// 		fmt.Println("failed to write to file:", err)
+// 		}
+// 		return false
+// 	}
+// 	return true
+// }
 
 type Server struct {
 	conns map[*websocket.Conn]bool
