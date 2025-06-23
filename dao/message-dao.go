@@ -33,8 +33,8 @@ func NewMessageDao(config *appconfig.Config) MessageDao {
 
 func (dao *messageDao) Create(message objects.Message) (int, error) {
 	result, err := dao.DAO.Exec(
-		"INSERT INTO message (sender, timestamp, content) VALUES (?,?,?)",
-		message.Sender, message.Time, message.Content,
+		"INSERT INTO message (sender_id, timestamp, content) VALUES (?,?,?)",
+		message.Sender.Id, message.Time, message.Content,
 	)
 	if err != nil {
 		fmt.Println("create error: ", err)
@@ -74,7 +74,7 @@ func (dao *messageDao) QueryAll(offset int, limit int) ([]*objects.Message, int,
 	count.Scan(&total)
 
 	rows, err := dao.DAO.Query(
-		"SELECT * FROM message ORDER BY message.ID DESC LIMIT ? OFFSET ?",
+		"SELECT * FROM message ORDER BY message.ID DESC LIMIT ? OFFSET ? JOIN user u ON u.id = message.sender_id",
 		limit, offset,
 	)
 	if err != nil {
@@ -86,7 +86,7 @@ func (dao *messageDao) QueryAll(offset int, limit int) ([]*objects.Message, int,
 	var messages []*objects.Message
 	for rows.Next(){
 		var msg objects.Message
-		err := rows.Scan(&msg.Id, &msg.Sender, &msg.Time, &msg.Content)
+		err := rows.Scan(&msg.Id, &msg.Sender.Id, &msg.Time, &msg.Content, &msg.Sender.Id, &msg.Sender.Username, &msg.Sender.Password)
 		if err != nil {
 			fmt.Println("Query error: ", err)
 			return nil, 0, err
@@ -110,7 +110,7 @@ func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) 
 	offset := 0
 	if (limit <= total) {offset = total - limit}
 	rows, err := dao.DAO.Query(
-		"SELECT * FROM message LIMIT ? OFFSET ?",
+		"SELECT * FROM message m JOIN user u on u.id = m.sender_id LIMIT ? OFFSET ?",
 		limit, offset,
 	)
 	if err != nil {
@@ -122,7 +122,8 @@ func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) 
 	var messages []*objects.Message
 	for rows.Next(){
 		var msg objects.Message
-		err := rows.Scan(&msg.Id, &msg.Sender, &msg.Time, &msg.Content)
+		msg.Sender = &objects.User{}
+		err := rows.Scan(&msg.Id, &msg.Sender.Id, &msg.Time, &msg.Content,&msg.Sender.Id, &msg.Sender.Username, &msg.Sender.Password, &msg.Sender.Avatar)
 		if err != nil {
 			fmt.Println("Query error: ", err)
 			return nil, 0, err

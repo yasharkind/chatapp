@@ -2,7 +2,8 @@ package main
 
 import (
 	"chatapp/base/appconfig"
-	"chatapp/dto"
+	"chatapp/dto/in"
+	"chatapp/dto/out"
 	"chatapp/objects"
 	service "chatapp/services"
 	"encoding/json"
@@ -37,11 +38,15 @@ var users = map[string]string{
 	"qonoeba": "konobeba",
 }
 
-func validateUser(name string, password string, content string) bool {
+func (s *Server) validateUser(username string, password string , content string) bool {
 	//validate user
-	if (users[name] != password || name == ""){
-		
-		unknownUser := fmt.Sprintf("unknwos user: %s, password: %s\nmessage: %s", name, password,  content)
+	fmt.Println(username, password)
+	dbUser, err := s.userService.FindByUsernameAndPassword(username, password)
+	if err != nil {
+		fmt.Println("validateUser error: ", err)
+	}
+	if dbUser == nil{
+		unknownUser := fmt.Sprintf("unknwos user: %s, password: %s\nmessage: %s", username, password,  content)
 		fmt.Println(unknownUser)
 		f, err := os.OpenFile("unknownuser.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err == nil {
@@ -64,29 +69,19 @@ type Server struct {
 
 	messageService service.MessageService
 
+	userService service.UserService
+
 	config *appconfig.Config
 }
 
-func NewServer() *Server {
-	config, err := appconfig.NewConfig("conf/app_cfg.yml")
-	if err != nil {
-		fmt.Println("error loading config: ", err)
-	}
+func NewServer(config *appconfig.Config) *Server {
+	
 	s := &Server{
 		config: config,
 		conns: make(map[*websocket.Conn]bool),
 		messageService: service.NewMessageService(config),
+		userService: service.NewUserService(config),
 	}
-
-	s.messageList = s.messageService.FindFromEnd(s.config.Server.MessageLimit)
-//
-//	data, err := os.ReadFile(messageFile)
-//	if err == nil {
-//		s.messageList = append(s.messageList, splitLines(string(data))...)
-//	} else {
-//		fmt.Println("No message history loaded: ", err)
-//	}
-
 
 	return s
 }
@@ -115,12 +110,20 @@ func (s *Server) handleWS(ws *websocket.Conn) {
 
 	s.mu.Lock()
 	var slice int
-	var mslen = len(s.messageList)
+	messageList := s.messageService.FindFromEnd(s.config.Server.MessageLimit)
+	var mslen = len(messageList)
 	var full_msg string = "["
 
 	if  mslen < s.config.Server.MessageLimit { slice = mslen } else { slice = s.config.Server.MessageLimit }
-	for _, message := range s.messageList[mslen - slice:] {
-		marshaled, err := json.Marshal(message) 
+	for _, message := range messageList[mslen - slice:] {
+			resMsg := dto_out.Message{
+			Id: message.Id,
+			Sender: message.Sender.Username,
+			Content: message.Content,
+			Avatar: message.Sender.Avatar,
+			Time: message.Time.Format("15:04:03"),
+		}
+		marshaled, err := json.Marshal(resMsg) 
 		if err != nil {
 			fmt.Println("error marshaling: ", err)
 			return
@@ -142,44 +145,40 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("sender")
 	password := r.FormValue("password")
 
-	if (!validateUser(name, password, "file object")){
-		return
-	}
-
 	if err != nil {
 		fmt.Println("formfile error: ", err)
 		return 
 	}
+
 	defer file.Close()
 	content, err := io.ReadAll(file)
 	err = os.WriteFile("uploads/" + handler.Filename, content, 0644)
+
 	if err != nil {
 		fmt.Println("write error: ", err)
 	}
 
+	user, err := s.userService.FindByUsernameAndPassword(name, password)
+	if err != nil {
+		fmt.Println("handleUpload error: ", err)
+	}
+
 	msg := objects.Message {
 		Id: 0,
-		Sender: name,
+		Sender: user,
 		Content: "http://chat.touhou.ir:3000/files/" + handler.Filename,
 		Time:  time.Now(),
 	}
 
 	
 	s.mu.Lock()
-	s.messageList = append(s.messageList, &msg)
 	newmsg := s.messageService.Save(msg)
 	fmt.Println("uplaoded file: ", handler.Filename)
 	marshaled, err := json.Marshal(newmsg)
 	if err != nil {
 		fmt.Println("marshal err: ", err)	
 	}
-//	f, err := os.OpenFile(messageFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-//	if err == nil {
-//		f.WriteString(string(marshaled) + "\n")
-//		f.Close()
-//	} else {
-//		fmt.Println("failed to write to file:", err)
-//	}
+
 	s.mu.Unlock()
 	s.broadcast([]byte(marshaled))
 	w.WriteHeader(http.StatusOK)
@@ -188,7 +187,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 func (s *Server) readLoop(ws *websocket.Conn) {
 	decoder := json.NewDecoder(ws)
 	for {
-		var msg dto.Message
+		var msg dto_in.Message
 		if err := decoder.Decode(&msg); err != nil {
 			if err == io.EOF {
 				break
@@ -197,15 +196,17 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			break
 		}
 
-		if (!validateUser(msg.Sender, msg.Password, msg.Content)) {
-			return
+		user, err := s.userService.FindByUsernameAndPassword(msg.Sender, msg.Password)
+		if err != nil {
+			fmt.Println("readLoop error: ", err)
+			continue
 		}
 		
 		jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now(), msg.Sender, msg.Content)
 		fmt.Println(jsonMsg)
 		message := &objects.Message{
 			Id: 0,
-			Sender: msg.Sender,
+			Sender: user,
 			Time: time.Now(),
 			Content: msg.Content,
 		}
@@ -214,18 +215,18 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 	
 		s.mu.Lock()
 		savedmsg := s.messageService.Save(*message)
-		s.messageList = append(s.messageList, savedmsg)
-		marshaled, err := json.Marshal(savedmsg)
+		resMsg := dto_out.Message{
+			Id: savedmsg.Id,
+			Sender: savedmsg.Sender.Username,
+			Content: savedmsg.Content,
+			Time: savedmsg.Time.Format("15:04:03"),
+		}
+		marshaled, err := json.Marshal(resMsg)
 		if err != nil {
 			fmt.Println("Error marshaling: ", err)
 		}
-	//	f, err := os.OpenFile(messageFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	//	if err == nil {
-	//		f.WriteString(string(marshaled) + "\n")
-	//		f.Close()
-	//	} else {
-	//		fmt.Println("failed to write to file:", err)
-	//	}
+
+
 		s.mu.Unlock()
 
 		s.broadcast([]byte(marshaled))
@@ -271,7 +272,11 @@ func main(){
 			next.ServeHTTP(w, r)
 		})
 	}
-	server := NewServer()
+	config, err := appconfig.NewConfig("conf/app_cfg.yml")
+	if err != nil {
+		fmt.Println("error loading config: ", err)
+	}
+	server := NewServer(config)
 	http.Handle("/ws", websocket.Handler(server.handleWS))
 	http.Handle("/upload", corsMiddleware(http.HandlerFunc(server.handleUpload)))
 	http.Handle("/files/", corsMiddleware(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads")))))

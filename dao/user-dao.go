@@ -132,6 +132,7 @@ func (dao *userDao) FindByUsernameAndPassword(username string, password string) 
 	rows, err := dao.DAO.Query("SELECT * FROM user WHERE username = ? and password = ?", username, password)
 	if err != nil {
 		fmt.Println("FindByUsernameAndPassword error: ", err)
+		return nil, err
 	}
 
 	defer rows.Close()

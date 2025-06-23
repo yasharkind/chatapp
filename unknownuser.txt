@@ -7,3 +7,5 @@ message: asdfasdf
 
 unknwos user: hello, password: meowmeow
 message: seeb
+unknwos user: hoogMEH, password: meowmeow
+message: asdfasdf
