@@ -48,7 +48,7 @@ func (dao *userDao) Create(user objects.User) (int, error) {
 
 func (dao *userDao) DeleteById(id int) error {
 	result, err := dao.DAO.Exec(
-		"DELETE FROM user WHERE id = ?", id,
+		"DELETE FROM user WHERE ID = ?", id,
 	)
 	if err != nil {
 		fmt.Println("delete error: ", err)
@@ -97,7 +97,7 @@ func (dao *userDao) QueryAll(offset int, limit int) ([]*objects.User, int, error
 }
 
 func (dao *userDao) FindById(id int) (*objects.User, error) {
-	rows, err := dao.DAO.Query("SELECT * FROM user WHERE id = ?", id)
+	rows, err := dao.DAO.Query("SELECT * FROM user WHERE ID = ?", id)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return nil, err
@@ -116,7 +116,7 @@ func (dao *userDao) FindById(id int) (*objects.User, error) {
 }
 
 func  (dao *userDao) UpdateById(id int, user objects.User) (*objects.User, error) {
-	result, err := dao.DAO.Exec("UPDATE user SET (username = ?, password = ?) WHERE id = ?", user.Username, user.Password, id)
+	result, err := dao.DAO.Exec("UPDATE user SET (username = ?, password = ?) WHERE ID = ?", user.Username, user.Password, id)
 	if err != nil {
 		log.Println("update error: ", err)
 	}

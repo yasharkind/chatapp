@@ -48,7 +48,7 @@ func (dao *messageDao) Create(message objects.Message) (int, error) {
 
 func (dao *messageDao) DeleteById(id int) error {
 	result, err := dao.DAO.Exec(
-		"DELETE FROM message WHERE id = ?", id,
+		"DELETE FROM message WHERE ID = ?", id,
 	)
 	if err != nil {
 		fmt.Println("delete error: ", err)
@@ -74,7 +74,7 @@ func (dao *messageDao) QueryAll(offset int, limit int) ([]*objects.Message, int,
 	count.Scan(&total)
 
 	rows, err := dao.DAO.Query(
-		"SELECT * FROM message ORDER BY message.ID DESC LIMIT ? OFFSET ? JOIN user u ON u.id = message.sender_id",
+		"SELECT * FROM message ORDER BY message.ID DESC LIMIT ? OFFSET ? JOIN user u ON u.ID = message.sender_id",
 		limit, offset,
 	)
 	if err != nil {
@@ -110,7 +110,7 @@ func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) 
 	offset := 0
 	if (limit <= total) {offset = total - limit}
 	rows, err := dao.DAO.Query(
-		"SELECT * FROM message m JOIN user u on u.id = m.sender_id LIMIT ? OFFSET ?",
+		"SELECT * FROM message m JOIN user u on u.ID = m.sender_id LIMIT ? OFFSET ?",
 		limit, offset,
 	)
 	if err != nil {
@@ -134,7 +134,7 @@ func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) 
 }
 
 func (dao *messageDao) FindById(id int) (*objects.Message, error) {
-	rows, err := dao.DAO.Query("SELECT * FROM message WHERE id = ?", id)
+	rows, err := dao.DAO.Query("SELECT * FROM message WHERE ID = ?", id)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return nil, err
@@ -153,7 +153,7 @@ func (dao *messageDao) FindById(id int) (*objects.Message, error) {
 }
 
 func  (dao *messageDao) UpdateById(id int, msg objects.Message) (*objects.Message, error) {
-	result, err := dao.DAO.Exec("UPDATE message SET content = ? WHERE id = ?", msg.Content, id)
+	result, err := dao.DAO.Exec("UPDATE message SET content = ? WHERE ID = ?", msg.Content, id)
 	if err != nil {
 		log.Println("update error: ", err)
 	}
