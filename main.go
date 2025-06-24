@@ -109,19 +109,16 @@ func (s *Server) handleWS(ws *websocket.Conn) {
 	s.mu.Unlock()
 
 	s.mu.Lock()
-	var slice int
 	messageList := s.messageService.FindFromEnd(s.config.Server.MessageLimit)
-	var mslen = len(messageList)
 	var full_msg string = "["
 
-	if  mslen < s.config.Server.MessageLimit { slice = mslen } else { slice = s.config.Server.MessageLimit }
-	for _, message := range messageList[mslen - slice:] {
+	for _, message := range messageList {
 			resMsg := dto_out.Message{
 			Id: message.Id,
 			Sender: message.Sender.Username,
 			Content: message.Content,
 			Avatar: message.Sender.Avatar,
-			Time: message.Time.Format("15:04:03"),
+			Time: message.Time.Local().Format("15:04:03"),
 		}
 		marshaled, err := json.Marshal(resMsg) 
 		if err != nil {
@@ -167,7 +164,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		Id: 0,
 		Sender: user,
 		Content: "http://chat.touhou.ir:3000/files/" + handler.Filename,
-		Time:  time.Now(),
+		Time:  time.Now().Local(),
 	}
 
 	
@@ -202,7 +199,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			continue
 		}
 		
-		jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now(), msg.Sender, msg.Content)
+		jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now().Local(), msg.Sender, msg.Content)
 		fmt.Println(jsonMsg)
 		message := &objects.Message{
 			Id: 0,
