@@ -116,7 +116,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	user, err := s.userService.FindByUsernameAndPassword(name, password)
 	if err != nil {
 		fmt.Println("handleUpload error: ", err)
-	}
+	e
 
 	msg := objects.Message {
 		Id: 0,
@@ -136,7 +136,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			Avatar: savedmsg.Sender.Avatar,
 		}
 	fmt.Println("uplaoded file: ", handler.Filename)
-	marshaled, err := json.Marshal(savedmsg)
+	marshaled, err := json.Marshal(resMsg)
 	if err != nil {
 		fmt.Println("marshal err: ", err)	
 	}
