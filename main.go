@@ -116,7 +116,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	user, err := s.userService.FindByUsernameAndPassword(name, password)
 	if err != nil {
 		fmt.Println("handleUpload error: ", err)
-	e
+	}
 
 	msg := objects.Message {
 		Id: 0,
