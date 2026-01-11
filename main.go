@@ -127,9 +127,16 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	
 	s.mu.Lock()
-	newmsg := s.messageService.Save(msg)
+	savedmsg := s.messageService.Save(msg)
+	resMsg := dto_out.Message{
+			Id: savedmsg.Id,
+			Sender: savedmsg.Sender.Username,
+			Content: savedmsg.Content,
+			Time: savedmsg.Time.Format("15:04:03"),
+			Avatar: savedmsg.Sender.Avatar,
+		}
 	fmt.Println("uplaoded file: ", handler.Filename)
-	marshaled, err := json.Marshal(newmsg)
+	marshaled, err := json.Marshal(savedmsg)
 	if err != nil {
 		fmt.Println("marshal err: ", err)	
 	}

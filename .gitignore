@@ -1,9 +1,7 @@
 chatapp
-uploads/
 uploads/*
-avatars/
 avatars/*
 conf/app_cfg.yml
-unknownusers.txt
+unknownuser.txt
 messages.txt
 /Makefile

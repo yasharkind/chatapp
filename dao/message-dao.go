@@ -86,7 +86,7 @@ func (dao *messageDao) QueryAll(offset int, limit int) ([]*objects.Message, int,
 	var messages []*objects.Message
 	for rows.Next(){
 		var msg objects.Message
-		err := rows.Scan(&msg.Id, &msg.Sender.Id, &msg.Time, &msg.Content, &msg.Sender.Id, &msg.Sender.Username, &msg.Sender.Password)
+		err := rows.Scan(&msg.Id, &msg.Sender.Id, &msg.Time, &msg.Content, &msg.Sender.Id, &msg.Sender.Username, &msg.Sender.Password, &msg.Sender.Avatar)
 		if err != nil {
 			fmt.Println("Query error: ", err)
 			return nil, 0, err
