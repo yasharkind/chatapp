@@ -189,6 +189,14 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			fmt.Println("Error marshaling: ", err)
 		}
 
+		if strings.HasPrefix(message.Content, ">profile") {
+			messageSplit := strings.Split(message.Content, " ")
+			if len(messageSplit) == 2 {
+				url := messageSplit[1]
+				user.Avatar = url
+				s.userService.UpdateById(user.Id, *user)
+			}
+		}
 
 		s.mu.Unlock()
 
