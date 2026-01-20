@@ -76,7 +76,7 @@ func (s *Server) handleWS(ws *websocket.Conn) {
 			Sender: message.Sender.Username,
 			Content: message.Content,
 			Avatar: message.Sender.Avatar,
-			Time: message.Time.Local().Format("15:04:03"),
+			Time: message.Time.Local().Format("15:04:05"),
 		}
 		marshaled, err := json.Marshal(resMsg) 
 		if err != nil {
@@ -132,7 +132,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			Id: savedmsg.Id,
 			Sender: savedmsg.Sender.Username,
 			Content: savedmsg.Content,
-			Time: savedmsg.Time.Format("15:04:03"),
+			Time: savedmsg.Time.Format("15:04:05"),
 			Avatar: savedmsg.Sender.Avatar,
 		}
 	fmt.Println("uplaoded file: ", handler.Filename)
@@ -181,7 +181,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			Id: savedmsg.Id,
 			Sender: savedmsg.Sender.Username,
 			Content: savedmsg.Content,
-			Time: savedmsg.Time.Format("15:04:03"),
+			Time: savedmsg.Time.Format("15:04:05"),
 			Avatar: savedmsg.Sender.Avatar,
 		}
 		marshaled, err := json.Marshal(resMsg)
@@ -189,6 +189,14 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			fmt.Println("Error marshaling: ", err)
 		}
 
+		if strings.HasPrefix(message.Content, ">profile") {
+			messageSplit := strings.Split(message.Content, " ")
+			if len(messageSplit) == 2 {
+				url := messageSplit[1]
+				user.Avatar = url
+				s.userService.UpdateById(user.Id, *user)
+			}
+		}
 
 		s.mu.Unlock()
 
