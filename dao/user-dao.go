@@ -116,7 +116,7 @@ func (dao *userDao) FindById(id int) (*objects.User, error) {
 }
 
 func  (dao *userDao) UpdateById(id int, user objects.User) (*objects.User, error) {
-	result, err := dao.DAO.Exec("UPDATE user SET (username = ?, password = ?) WHERE ID = ?", user.Username, user.Password, id)
+	result, err := dao.DAO.Exec("UPDATE user SET username = ?, password = ?, avatar = ? WHERE ID = ?", user.Username, user.Password, user.Avatar, id)
 	if err != nil {
 		log.Println("update error: ", err)
 	}
