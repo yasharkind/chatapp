@@ -5,3 +5,5 @@ conf/app_cfg.yml
 unknownuser.txt
 messages.txt
 /Makefile
+vendor/*
+vendor
