@@ -4,6 +4,7 @@ import (
 	"chatapp/base/appconfig"
 	"chatapp/dto/in"
 	"chatapp/dto/out"
+	"chatapp/middlewares"
 	"chatapp/objects"
 	service "chatapp/services"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +21,7 @@ import (
 )
 
 type Server struct {
-	conns map[*websocket.Conn]bool
+	conns map[*websocket.Conn]string // ws to token
 
 	messageList []*objects.Message
 
@@ -30,16 +32,27 @@ type Server struct {
 	userService service.UserService
 
 	config *appconfig.Config
+	
+	hostname string
 }
 
 func NewServer(config *appconfig.Config) *Server {
 	
 	s := &Server{
 		config: config,
-		conns: make(map[*websocket.Conn]bool),
+		conns: make(map[*websocket.Conn]string),
 		messageService: service.NewMessageService(config),
 		userService: service.NewUserService(config),
 	}
+
+	if (s.config.Server.TLS) {
+		s.hostname = "https://" + config.Server.Host + ":"
+	} else {
+		s.hostname = "http://" + config.Server.Host + ":"
+	}
+
+	s.hostname += strconv.Itoa(s.config.Server.Port)
+	println(s.hostname)
 
 	return s
 }
@@ -56,64 +69,53 @@ func splitLines(s string) []string {
 
 func (s *Server) handleWS(ws *websocket.Conn) {
 	var address = ws.RemoteAddr().String()
+	
 	if (!(strings.Contains(address, "touhou.ir") || strings.Contains(address, "localhost"))){
 		ws.Close()
 		return
 	}
 	fmt.Println("new incoming connection from client: ", ws.RemoteAddr())
+
+
 	
 	s.mu.Lock()
-	s.conns[ws] = true
+	fmt.Println("ws from: ", address)
 	s.mu.Unlock()
 
-	s.mu.Lock()
-	messageList := s.messageService.FindFromEnd(s.config.Server.MessageLimit)
-	var full_msg string = "["
-
-	for _, message := range messageList {
-			resMsg := dto_out.Message{
-			Id: message.Id,
-			Sender: message.Sender.Username,
-			Content: message.Content,
-			Avatar: message.Sender.Avatar,
-			Time: message.Time.Local().Format("15:04:05"),
-		}
-		marshaled, err := json.Marshal(resMsg) 
-		if err != nil {
-			fmt.Println("error marshaling: ", err)
-			return
-		}
-		full_msg += string(marshaled) + "," 
-	}
-	full_msg = full_msg[:len(full_msg)-1] + "]"
-	if _, err := ws.Write([]byte(full_msg)); err != nil {
-		fmt.Println("error sending past messages: ", err)
-	}
-	s.mu.Unlock()
-
+	
 	s.readLoop(ws)
 }
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	file, handler, err := r.FormFile("file")
-	name := r.FormValue("sender")
-	password := r.FormValue("password")
+	os.ReadDir("uploads/")
+	token := r.FormValue("token")
+
+	user := middlewares.Validate(token, s.config.Secret, s.userService)
 
 	if err != nil {
 		fmt.Println("formfile error: ", err)
+		w.WriteHeader(400)
 		return 
+	}
+
+	if user == nil {
+		fmt.Println("invalid token")
+		w.WriteHeader(400)
+		return
 	}
 
 	defer file.Close()
 	content, err := io.ReadAll(file)
-	err = os.WriteFile("uploads/" + handler.Filename, content, 0644)
+	filenameSplit := strings.Split(handler.Filename, ".")
+	filename := filenameSplit[0] + time.Now().Format("15_04_05.") + filenameSplit[1]
+	err = os.WriteFile("uploads/" + filename, content, 0644)
 
 	if err != nil {
 		fmt.Println("write error: ", err)
 	}
 
-	user, err := s.userService.FindByUsernameAndPassword(name, password)
 	if err != nil {
 		fmt.Println("handleUpload error: ", err)
 	}
@@ -121,7 +123,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	msg := objects.Message {
 		Id: 0,
 		Sender: user,
-		Content: "http://chat.touhou.ir:3000/files/" + handler.Filename,
+		Content: s.hostname + "/files/" + filename,
 		Time:  time.Now().Local(),
 	}
 
@@ -135,14 +137,14 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			Time: savedmsg.Time.Format("15:04:05"),
 			Avatar: savedmsg.Sender.Avatar,
 		}
-	fmt.Println("uplaoded file: ", handler.Filename)
+	fmt.Println("uplaoded file: ", filename)
 	marshaled, err := json.Marshal(resMsg)
 	if err != nil {
 		fmt.Println("marshal err: ", err)	
 	}
 
 	s.mu.Unlock()
-	s.broadcast([]byte(marshaled))
+	s.broadcast([]byte(marshaled), token)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -158,14 +160,25 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			break
 		}
 
-		user, err := s.userService.FindByUsernameAndPassword(msg.Sender, msg.Password)
-		if err != nil {
-			fmt.Println("readLoop error: ", err)
+		user := middlewares.Validate(msg.Token, s.config.Secret, s.userService)
+
+		if user == nil {
+			fmt.Println("user not found")
+			continue
+		}
+
+		// auth
+		println(msg.OpCode)
+		if msg.OpCode == 0 {
+			s.mu.Lock()
+			s.conns[ws] = msg.Token
+			println(msg.Token)
+			s.mu.Unlock()
 			continue
 		}
 		
-		jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now().Local(), msg.Sender, msg.Content)
-		fmt.Println(jsonMsg)
+		//jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now().Local(), user.Username, msg.Content)
+		//fmt.Println(jsonMsg)
 		message := &objects.Message{
 			Id: 0,
 			Sender: user,
@@ -200,17 +213,26 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 
 		s.mu.Unlock()
 
-		s.broadcast([]byte(marshaled))
+		s.broadcast([]byte(marshaled), msg.Token)
 	}
 }
 
 
-func (s *Server) broadcast(b []byte) {
+func (s *Server) broadcast(b []byte, token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for ws := range s.conns {
 		go func(ws *websocket.Conn) {
+			if user := middlewares.Validate(s.conns[ws], s.config.Secret, s.userService); user == nil {
+				s.mu.Lock()
+				fmt.Printf("Unauthorized WS: %s != %s\n", s.conns[ws], token)
+				ws.Close()
+
+				delete(s.conns, ws)
+				s.mu.Unlock()
+				return
+			}
 			if _, err := ws.Write(b); err != nil {
 				fmt.Println("write err ", err)
 				ws.Close()
@@ -228,13 +250,66 @@ func serveFilesHandler(w http.ResponseWriter, r *http.Request) {
 	fs.ServeHTTP(w, r)
 }
 
+func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
+	token := strings.Join(r.Header["Authorization"], "")
+	if (token == "") {
+		fmt.Println("token is empty")
+		return
+	}
+	user := middlewares.Validate(token, s.config.Secret, s.userService)
+	if user == nil {
+		fmt.Println("user not found")
+		return
+	}
+	s.mu.Lock()
+	messageList := s.messageService.FindFromEnd(s.config.Server.MessageLimit)
+	
+	var messageDtos []dto_out.Message
+	for _, message := range messageList {
+		messageDtos = append(messageDtos, dto_out.Message{
+			Id: message.Id,
+			Sender: message.Sender.Username,
+			Content: message.Content,
+			Avatar: message.Sender.Avatar,
+			Time: message.Time.Format("15:04:05"),
+		})
+	}
+	dto := dto_out.Auth{
+		Token: token,
+		Messages: messageDtos,
+	}
+	marshaled, err := json.Marshal(dto)
+	if err != nil {
+		fmt.Println("marshal error: ", err)
+	}
+	if _, err := w.Write(marshaled); err != nil {
+		fmt.Println("write error: ", err)
+	}
+	s.mu.Unlock()
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request){
+	var user_dto *dto_in.User
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&user_dto); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Println("decode error: ", err)
+		return
+	}
+	token, err := s.userService.JWTByUsernameAndPassword(user_dto.Username, user_dto.Password)
+	if err != nil {
+		fmt.Println("jwt error: ", err)
+		w.WriteHeader(403)
+	}
+	w.Write([]byte(token))
+}
 
 func main(){
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "*")
 
 			if r.Method == "OPTIONS" {
 				return
@@ -253,6 +328,9 @@ func main(){
 	http.Handle("/files/", corsMiddleware(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads")))))
 
 	http.Handle("/avatar/", corsMiddleware(http.StripPrefix("/avatar/", http.FileServer(http.Dir("avatars")))))
+
+	http.Handle("/auth", corsMiddleware(http.HandlerFunc(server.handleMessageHistory)))
+	http.Handle("/login", corsMiddleware(http.HandlerFunc(server.handleLogin)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)

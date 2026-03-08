@@ -1,8 +1,8 @@
 package dto_in
 
 type Message struct {
-	Sender string `json:"sender"`
-	Password string `json:"password"`
+	Token string `json:"token"`
+	OpCode int `json:"op_code"`
 	Content string `json:"content"`
 }
 

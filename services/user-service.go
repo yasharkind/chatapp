@@ -5,6 +5,9 @@ import (
 	"chatapp/dao"
 	"chatapp/objects"
 	"fmt"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type UserService interface {
@@ -14,6 +17,7 @@ type UserService interface {
 	UpdateById(int, objects.User) (*objects.User, error)
 	FindByUsernameAndPassword(username string, password string) (*objects.User, error)
 	DeleteById(int) error
+	JWTByUsernameAndPassword(string, string) (string, error)
 }
 
 type userService struct {
@@ -77,6 +81,29 @@ func (service *userService) FindByUsernameAndPassword(username string, password 
 		return nil, err
 	}
 	return user, nil
+}
+
+func (service *userService) JWTByUsernameAndPassword(username string, password string) (string, error) {
+	user, err := service.FindByUsernameAndPassword(username, password)
+	if err != nil {
+		fmt.Printf("jwtbyemailandpassword error: %s", err)
+		return "", err
+	}
+	if user == nil {
+		fmt.Printf("user by username %s not found", username)
+		return "", nil
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": user.Id,
+		"exp": time.Now().Add(time.Hour * 24 * 30).Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(service.config.Secret))
+	if err != nil {
+		fmt.Printf("failed to create token %s", err)
+		return "", err
+	}
+	return tokenString, nil
 }
 
 func NewUserService(config *appconfig.Config) UserService {

@@ -1,5 +1,5 @@
 server:
-  host:
+  host: chat.touhou.ir
   port: 3000
   mode: debug
   tls: false
@@ -9,3 +9,4 @@ database:
     url: username:password@tcp(host:3306)/dbname
     max_idle_conns: 5
     max_open_conns: 0 
+secret: 
