@@ -109,7 +109,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 	content, err := io.ReadAll(file)
 	filenameSplit := strings.Split(handler.Filename, ".")
-	filename := filenameSplit[0] + time.Now().Format("15_04_05.") + filenameSplit[1]
+	filename := strings.Join(filenameSplit[0:len(filenameSplit)-1], "") + time.Now().Format("15_04_05.") + filenameSplit[len(filenameSplit)-1]
 	err = os.WriteFile("uploads/" + filename, content, 0644)
 
 	if err != nil {
@@ -182,7 +182,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 		message := &objects.Message{
 			Id: 0,
 			Sender: user,
-			Time: time.Now(),
+			Time: time.Now().Local(),
 			Content: msg.Content,
 		}
 
@@ -213,12 +213,12 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 
 		s.mu.Unlock()
 
-		s.broadcast([]byte(marshaled), msg.Token)
+		s.broadcast([]byte(marshaled))
 	}
 }
 
 
-func (s *Server) broadcast(b []byte, token string) {
+func (s *Server) broadcast(b []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -226,7 +226,7 @@ func (s *Server) broadcast(b []byte, token string) {
 		go func(ws *websocket.Conn) {
 			if user := middlewares.Validate(s.conns[ws], s.config.Secret, s.userService); user == nil {
 				s.mu.Lock()
-				fmt.Printf("Unauthorized WS: %s != %s\n", s.conns[ws], token)
+				fmt.Printf("Unauthorized WS: %s != %s\n", s.conns[ws], s.conns[ws])
 				ws.Close()
 
 				delete(s.conns, ws)
@@ -309,7 +309,7 @@ func main(){
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "*")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == "OPTIONS" {
 				return
