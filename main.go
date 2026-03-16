@@ -144,7 +144,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Unlock()
-	s.broadcast([]byte(marshaled), token)
+	s.broadcast([]byte(marshaled))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -271,7 +271,7 @@ func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
 			Sender: message.Sender.Username,
 			Content: message.Content,
 			Avatar: message.Sender.Avatar,
-			Time: message.Time.Format("15:04:05"),
+			Time: message.Time.Local().Format("15:04:05"),
 		})
 	}
 	dto := dto_out.Auth{
