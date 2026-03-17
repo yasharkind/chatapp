@@ -316,7 +316,12 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 		Username: user.Username,
 		Avatar: user.Avatar,
 	}
-	marshaled := json.Marshal(res)
+	marshaled, err := json.Marshal(res)
+	if err != nil {
+		println(err)
+		w.WriteHeader(401)
+		return
+	}
 	w.Write(marshaled)
 }
 
@@ -324,12 +329,7 @@ func main(){
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methodslet bar = document.getElementById(`progressbar-${id}`);
-          bar.style.backgroundColor = "red";
-          bar.style.width = "100%";
-          setTimeout(() => {
-            setProgressBars((p) => p.filter((o) => o != id));
-          }, 3000);", "POST, GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == "OPTIONS" {
