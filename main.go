@@ -304,11 +304,32 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request){
 	w.Write([]byte(token))
 }
 
+func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
+	var token = strings.Join(r.Header["Authorization"], "")
+	user := middlewares.Validate(token, s.config.Secret, s.userService)
+	if user == nil {
+		w.WriteHeader(404)
+		return
+	}
+	res := dto_out.User{
+		Id: user.Id,
+		Username: user.Username,
+		Avatar: user.Avatar,
+	}
+	marshaled := json.Marshal(res)
+	w.Write(marshaled)
+}
+
 func main(){
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methodslet bar = document.getElementById(`progressbar-${id}`);
+          bar.style.backgroundColor = "red";
+          bar.style.width = "100%";
+          setTimeout(() => {
+            setProgressBars((p) => p.filter((o) => o != id));
+          }, 3000);", "POST, GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == "OPTIONS" {
@@ -331,6 +352,8 @@ func main(){
 
 	http.Handle("/auth", corsMiddleware(http.HandlerFunc(server.handleMessageHistory)))
 	http.Handle("/login", corsMiddleware(http.HandlerFunc(server.handleLogin)))
+
+	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)

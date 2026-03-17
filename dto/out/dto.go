@@ -11,13 +11,13 @@ type Message struct {
 
 
 type User struct {
-	// Id	int   `json:"id"`
+	Id int   		`json:"id"`
 	Username string `json:"username"`
-	Avatar	string `json:"avatar"`
+	Avatar	 string `json:"avatar"`
 }
 
 type Auth struct {
 	// OpCode int `json:"op_code"`
-	Token string `json:"token"`
+	Token	 string	   `json:"token"`
 	Messages []Message `json:"messages"`
 }
