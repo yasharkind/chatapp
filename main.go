@@ -342,18 +342,18 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 
 	message, err:=s.messageService.FindById(dto.MessageId)
 	if err != nil{
-		println("DeleteMessage error: ", err)
+		println("DeleteMessage error 1: ", err)
 		w.WriteHeader(401)
 		return
 	}
 	if (message.Sender.Id != user.Id) {
-		println("DeleteMessage error: no permission")
+		println("DeleteMessage error 2: no permission")
 		w.WriteHeader(403)
 		return
 	}
 	err = s.messageService.DeleteById(dto.MessageId)
 	if err != nil {
-		println("DeleteMessage error: ", err)
+		println("DeleteMessage error 3: ", err)
 		w.WriteHeader(401)
 		return
 	}
