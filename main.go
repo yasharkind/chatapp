@@ -325,6 +325,41 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 	w.Write(marshaled)
 }
 
+func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(404)
+		return
+	}
+	var token = strings.Join(r.Header["Authorization"], "")
+	user := middlewares.Validate(token, s.config.Secret, s.userService)
+	if user == nil {
+		w.WriteHeader(404)
+		return
+	}
+	var dto dto_in.DeleteMessage
+	decoder := json.NewDecoder(r.Body)
+	decoder.Decode(&dto)
+
+	message, err:=s.messageService.FindById(dto.MessageId)
+	if err != nil{
+		println("DeleteMessage error: ", err)
+		w.WriteHeader(401)
+		return
+	}
+	if (message.Sender.Id != user.Id) {
+		println("DeleteMessage error: no permission")
+		w.WriteHeader(403)
+		return
+	}
+	err = s.messageService.DeleteById(dto.MessageId)
+	if err != nil {
+		println("DeleteMessage error: ", err)
+		w.WriteHeader(401)
+		return
+	}
+	w.WriteHeader(200)
+}
+
 func main(){
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -354,6 +389,7 @@ func main(){
 	http.Handle("/login", corsMiddleware(http.HandlerFunc(server.handleLogin)))
 
 	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
+	http.Handle("/deletemessage", corsMiddleware(http.HandlerFunc(server.handleDeleteMessage)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)
