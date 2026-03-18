@@ -3,6 +3,7 @@ package main
 import (
 	"chatapp/base/appconfig"
 	"chatapp/dto/in"
+	"chatapp/dto/in/opcodes"
 	"chatapp/dto/out"
 	"chatapp/middlewares"
 	"chatapp/objects"
@@ -130,25 +131,28 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	
 	s.mu.Lock()
 	savedmsg := s.messageService.Save(msg)
-	resMsg := dto_out.Message{
+	resMsg := dto_out.SendMessage{
+			Action: opcodes.SendMessage,
 			Id: savedmsg.Id,
 			Sender: savedmsg.Sender.Username,
+			SenderId: savedmsg.Sender.Id,
 			Content: savedmsg.Content,
 			Time: savedmsg.Time.Format("15:04:05"),
 			Avatar: savedmsg.Sender.Avatar,
 		}
 	fmt.Println("uplaoded file: ", filename)
-	marshaled, err := json.Marshal(resMsg)
-	if err != nil {
-		fmt.Println("marshal err: ", err)	
-	}
+	//marshaled, err := json.Marshal(resMsg)
+	//if err != nil {
+	//	fmt.Println("marshal err: ", err)	
+	//}
 
 	s.mu.Unlock()
-	s.broadcast([]byte(marshaled))
+	s.broadcast(&resMsg)
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) readLoop(ws *websocket.Conn) {
+	// TODO: move this into a SendMessage http handler then broadcast with opcode from there
 	decoder := json.NewDecoder(ws)
 	for {
 		var msg dto_in.Message
@@ -168,57 +172,59 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 		}
 
 		// auth
-		println(msg.OpCode)
-		if msg.OpCode == 0 {
+		switch msg.OpCode{
+		case opcodes.Auth:
 			s.mu.Lock()
 			s.conns[ws] = msg.Token
-			println(msg.Token)
 			s.mu.Unlock()
-			continue
-		}
-		
-		//jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now().Local(), user.Username, msg.Content)
-		//fmt.Println(jsonMsg)
-		message := &objects.Message{
-			Id: 0,
-			Sender: user,
-			Time: time.Now().Local(),
-			Content: msg.Content,
-		}
+
+		case opcodes.SendMessage:
+			message := &objects.Message{
+				Id: 0,
+				Sender: user,
+				Time: time.Now().Local(),
+				Content: msg.Content,
+			}
 
 		
 	
-		s.mu.Lock()
-		savedmsg := s.messageService.Save(*message)
-		resMsg := dto_out.Message{
-			Id: savedmsg.Id,
-			Sender: savedmsg.Sender.Username,
-			Content: savedmsg.Content,
-			Time: savedmsg.Time.Format("15:04:05"),
-			Avatar: savedmsg.Sender.Avatar,
-		}
-		marshaled, err := json.Marshal(resMsg)
-		if err != nil {
-			fmt.Println("Error marshaling: ", err)
-		}
-
-		if strings.HasPrefix(message.Content, ">profile") {
-			messageSplit := strings.Split(message.Content, " ")
-			if len(messageSplit) == 2 {
-				url := messageSplit[1]
-				user.Avatar = url
-				s.userService.UpdateById(user.Id, *user)
+			s.mu.Lock()
+			savedmsg := s.messageService.Save(*message)
+			resMsg := dto_out.SendMessage{
+				Action: msg.OpCode,
+				Id: savedmsg.Id,
+				Sender: savedmsg.Sender.Username,
+				SenderId: savedmsg.Sender.Id,
+				Content: savedmsg.Content,
+				Time: savedmsg.Time.Format("15:04:05"),
+				Avatar: savedmsg.Sender.Avatar,
 			}
-		}
+			//marshaled, err := json.Marshal(resMsg)
+			//if err != nil {
+			//	fmt.Println("Error marshaling: ", err)
+			//}
+        	
+			if strings.HasPrefix(message.Content, ">profile") {
+				messageSplit := strings.Split(message.Content, " ")
+				if len(messageSplit) == 2 {
+					url := messageSplit[1]
+					user.Avatar = url
+					s.userService.UpdateById(user.Id, *user)
+				}
+			}
+        	
+			s.mu.Unlock()
 
-		s.mu.Unlock()
-
-		s.broadcast([]byte(marshaled))
+			jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now().Local(), user.Username, msg.Content)
+			fmt.Println(jsonMsg)
+			s.broadcast(&resMsg)
+	
+		}	
 	}
 }
 
 
-func (s *Server) broadcast(b []byte) {
+func (s *Server) broadcast(r dto_out.WebSockRes) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -233,14 +239,26 @@ func (s *Server) broadcast(b []byte) {
 				s.mu.Unlock()
 				return
 			}
-			if _, err := ws.Write(b); err != nil {
-				fmt.Println("write err ", err)
-				ws.Close()
-				s.mu.Lock()
-				
-				delete(s.conns, ws)
-				s.mu.Unlock()
+			switch r.OpCode(){
+			case opcodes.SendMessage, opcodes.DeleteMessage:
+				b, err := json.Marshal(r)
+				if err != nil {
+					println("Marshal error: ", err)
+					return
+				}
+
+				if _, err := ws.Write(b); err != nil {
+					fmt.Println("write err ", err)
+					ws.Close()
+					s.mu.Lock()
+					
+					delete(s.conns, ws)
+					s.mu.Unlock()
+				}
+			default:
+				println("Unknow OP Code ", r.OpCode())
 			}
+
 		}(ws)
 	}
 }
@@ -264,11 +282,12 @@ func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	messageList := s.messageService.FindFromEnd(s.config.Server.MessageLimit)
 	
-	var messageDtos []dto_out.Message
+	var messageDtos []dto_out.SendMessage
 	for _, message := range messageList {
-		messageDtos = append(messageDtos, dto_out.Message{
+		messageDtos = append(messageDtos, dto_out.SendMessage{
 			Id: message.Id,
 			Sender: message.Sender.Username,
+			SenderId: message.Sender.Id,
 			Content: message.Content,
 			Avatar: message.Sender.Avatar,
 			Time: message.Time.Local().Format("15:04:05"),
@@ -340,14 +359,14 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&dto)
 
-	message, err:=s.messageService.FindById(dto.MessageId)
+	message, err := s.messageService.FindById(dto.MessageId)
 	if err != nil{
 		println("DeleteMessage error 1: ", err)
 		w.WriteHeader(401)
 		return
 	}
 	if (message.Sender.Id != user.Id) {
-		println("DeleteMessage error 2: no permission")
+		println("DeleteMessage error 2: no permission ", message.Sender.Id, user.Id)
 		w.WriteHeader(403)
 		return
 	}
@@ -357,6 +376,14 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(401)
 		return
 	}
+	response := &dto_out.DeleteMessage{
+		Action: opcodes.DeleteMessage,
+		Id: dto.MessageId,
+	}
+
+	log := fmt.Sprintf("%s-%s: Deleted Message %d", time.Now().Local(), user.Username, dto.MessageId)
+	println(log)
+	s.broadcast(response)
 	w.WriteHeader(200)
 }
 

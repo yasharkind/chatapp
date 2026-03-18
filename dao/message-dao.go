@@ -134,7 +134,7 @@ func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) 
 }
 
 func (dao *messageDao) FindById(id int) (*objects.Message, error) {
-	rows, err := dao.DAO.Query("SELECT * FROM message WHERE ID = ?", id)
+	rows, err := dao.DAO.Query("SELECT * FROM message m JOIN user u on u.ID = m.sender_id  WHERE m.ID = ?", id)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return nil, err
@@ -148,7 +148,10 @@ func (dao *messageDao) FindById(id int) (*objects.Message, error) {
 		return nil, err
 	}
 	var msg objects.Message
-	err = rows.Scan(&msg.Id, &msg.Sender, &msg.Content, &msg.Time)
+
+	msg.Sender = &objects.User{}
+	
+	err = rows.Scan(&msg.Id, &msg.Sender.Id, &msg.Time, &msg.Content, &msg.Sender.Id, &msg.Sender.Username, &msg.Sender.Password, &msg.Sender.Avatar)
 	return &msg, nil
 }
 

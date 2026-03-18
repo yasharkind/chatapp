@@ -6,4 +6,4 @@ unknownuser.txt
 messages.txt
 /Makefile
 vendor/*
-vendor
+vendor/
