@@ -280,7 +280,7 @@ func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	messageList := s.messageService.FindFromEnd(s.config.Server.MessageLimit)
+	messageList := s.messageService.FindByLimitOffset(s.config.Server.MessageLimit, 0)
 	
 	var messageDtos []dto_out.SendMessage
 	for _, message := range messageList {
@@ -305,6 +305,37 @@ func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("write error: ", err)
 	}
 	s.mu.Unlock()
+}
+
+func (s *Server) handleLoadMoreMessages(w http.ResponseWriter, r *http.Request) {
+
+	offset, err := strconv.Atoi(r.PathValue("offset"))
+
+	if err != nil {
+		w.WriteHeader(401)
+		return
+	}
+	messages := s.messageService.FindByLimitOffset(s.config.Server.MessageLimit, offset * s.config.Server.MessageLimit)
+
+	var dto []dto_out.SendMessage
+	for _, message := range messages {
+		obj := dto_out.SendMessage{
+			Id: message.Id,
+			Sender: message.Sender.Username,
+			SenderId: message.Sender.Id,
+			Content: message.Content,
+			Avatar: message.Sender.Avatar,
+			Time: message.Time.Local().Format("15:04:05") ,
+		}
+		dto = append(dto, obj)
+	}
+
+	marshaled, err := json.Marshal(dto)
+	if err != nil {
+		println("/messages marshal error: ", err)
+	}
+
+	w.Write(marshaled)
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request){
@@ -417,6 +448,7 @@ func main(){
 
 	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
 	http.Handle("/deletemessage", corsMiddleware(http.HandlerFunc(server.handleDeleteMessage)))
+	http.Handle("GET /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)

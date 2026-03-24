@@ -10,7 +10,7 @@ import (
 type MessageService interface {
 	Save(objects.Message) *objects.Message
 	FindAll(offset int,limit int) []*objects.Message
-	FindFromEnd(limit int) []*objects.Message
+	FindByLimitOffset(limit int, offset int) []*objects.Message
 	FindById(id int) (*objects.Message, error)
 	UpdateById(int, objects.Message) (*objects.Message, error)
 	DeleteById(int) error
@@ -42,8 +42,8 @@ func (service *messageService) FindAll(offset int, limit int) []*objects.Message
 	return msgs
 }
 
-func (service *messageService) FindFromEnd(limit int) []*objects.Message {
-	msgs,_,err := service.messagedao.QueryFromEnd(limit)
+func (service *messageService) FindByLimitOffset(limit int, offset int) []*objects.Message {
+	msgs,_,err := service.messagedao.QueryByLimitOffset(limit, offset)
 	if err != nil {
 		fmt.Println("queryall error: ", err)
 	}

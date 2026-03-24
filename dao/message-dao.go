@@ -13,7 +13,7 @@ type MessageDao interface {
 	Create(message objects.Message) (int, error)
 	DeleteById(id int) error
 	QueryAll(offset int, limit int) ([]*objects.Message, int, error)
-	QueryFromEnd(limit int) ([]*objects.Message, int, error)
+	QueryByLimitOffset(limit int, offset int) ([]*objects.Message, int, error)
 	FindById(id int) (*objects.Message, error)
 	UpdateById(id int, msg objects.Message) (*objects.Message, error)
 }
@@ -95,7 +95,7 @@ func (dao *messageDao) QueryAll(offset int, limit int) ([]*objects.Message, int,
 	}
 	return messages, total, nil
 }
-func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) {
+func (dao *messageDao) QueryByLimitOffset(limit int, offset int) ([]*objects.Message, int, error) {
 	count, err := dao.DAO.Query("SELECT COUNT(*) FROM message")
 	if err != nil {
 		fmt.Println("Query error: ", err)
@@ -107,10 +107,8 @@ func (dao *messageDao) QueryFromEnd(limit int) ([]*objects.Message, int, error) 
 	count.Next()
 	count.Scan(&total)
 
-	offset := 0
-	if (limit <= total) {offset = total - limit}
 	rows, err := dao.DAO.Query(
-		"SELECT * FROM message m JOIN user u on u.ID = m.sender_id LIMIT ? OFFSET ?",
+		"SELECT * FROM message m JOIN user u on u.ID = m.sender_id ORDER BY m.ID desc LIMIT ? OFFSET ?",
 		limit, offset,
 	)
 	if err != nil {
