@@ -312,7 +312,7 @@ func (s *Server) handleLoadMoreMessages(w http.ResponseWriter, r *http.Request) 
 
 	user := middlewares.Validate(token, s.config.Secret, s.userService)
 
-	if user != nil {
+	if user == nil {
 		w.WriteHeader(403)
 		return
 	}
