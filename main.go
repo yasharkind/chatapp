@@ -456,7 +456,8 @@ func main(){
 
 	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
 	http.Handle("/deletemessage", corsMiddleware(http.HandlerFunc(server.handleDeleteMessage)))
-	http.Handle("GET OPTIONS /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
+	http.Handle("GET /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
+	http.Handle("OPTIONS /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)
