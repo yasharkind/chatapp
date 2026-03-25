@@ -308,6 +308,14 @@ func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLoadMoreMessages(w http.ResponseWriter, r *http.Request) {
+	token := strings.Join(r.Header["Authorization"], "")
+
+	user := middlewares.Validate(token, s.config.Secret, s.userService)
+
+	if user != nil {
+		w.WriteHeader(403)
+		return
+	}
 
 	offset, err := strconv.Atoi(r.PathValue("offset"))
 
@@ -448,7 +456,7 @@ func main(){
 
 	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
 	http.Handle("/deletemessage", corsMiddleware(http.HandlerFunc(server.handleDeleteMessage)))
-	http.Handle("GET /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
+	http.Handle("GET OPTIONS /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)
