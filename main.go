@@ -240,7 +240,7 @@ func (s *Server) broadcast(r dto_out.WebSockRes) {
 				return
 			}
 			switch r.OpCode(){
-			case opcodes.SendMessage, opcodes.DeleteMessage:
+			case opcodes.SendMessage, opcodes.DeleteMessage, opcodes.EditMessage:
 				b, err := json.Marshal(r)
 				if err != nil {
 					println("Marshal error: ", err)
@@ -426,6 +426,56 @@ func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
+func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(404)
+		return
+	}
+	var token = strings.Join(r.Header["Authorization"], "")
+	user := middlewares.Validate(token, s.config.Secret, s.userService)
+	if user == nil {
+		w.WriteHeader(404)
+		return
+	}
+	var dto dto_in.EditMessage
+	decoder := json.NewDecoder(r.Body)
+	decoder.Decode(&dto)
+
+	message, err := s.messageService.FindById(dto.MessageId)
+	if err != nil{
+		println("DeleteMessage error 1: ", err)
+		w.WriteHeader(401)
+		return
+	}
+	if (message.Sender.Id != user.Id) {
+		println("DeleteMessage error 2: no permission ", message.Sender.Id, user.Id)
+		w.WriteHeader(403)
+		return
+	}
+	newmsg := objects.Message{
+		Id: message.Id,
+		Content: dto.NewContent,
+		Sender: message.Sender,
+		Time: message.Time,
+	}
+	msg, err := s.messageService.UpdateById(dto.MessageId, newmsg)
+	if err != nil {
+		println("DeleteMessage error 3: ", err)
+		w.WriteHeader(401)
+		return
+	}
+	response := &dto_out.EditMessage{
+		Action: opcodes.EditMessage,
+		Id: dto.MessageId,
+		NewContent: msg.Content,
+	}
+
+	log := fmt.Sprintf("%s-%s: Edited Message %d content: %s", time.Now().Local(), user.Username, dto.MessageId, dto.NewContent)
+	println(log)
+	s.broadcast(response)
+	w.WriteHeader(200)
+}
+
 func main(){
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -456,6 +506,7 @@ func main(){
 
 	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
 	http.Handle("/deletemessage", corsMiddleware(http.HandlerFunc(server.handleDeleteMessage)))
+	http.Handle("/editmessage", corsMiddleware(http.HandlerFunc(server.handleEditMessage)))
 	http.Handle("GET /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
 	http.Handle("OPTIONS /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
 

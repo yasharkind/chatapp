@@ -16,3 +16,7 @@ type DeleteMessage struct {
 	MessageId int `json:"message_id"`
 }
 
+type EditMessage struct {
+	MessageId  int    `json:"message_id"`
+	NewContent string `json:"new_content"`
+}

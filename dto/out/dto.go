@@ -27,6 +27,13 @@ type DeleteMessage struct {
 
 func (i *DeleteMessage) OpCode() int { return opcodes.DeleteMessage }
 
+type EditMessage struct {
+	Action 	   int    `json:"op_code"`
+	Id	   	   int    `json:"id"`
+	NewContent string `json:"new_content"`
+}
+
+func (i *EditMessage) OpCode() int { return opcodes.EditMessage }
 
 type User struct {
 	Id       int   	`json:"id"`
