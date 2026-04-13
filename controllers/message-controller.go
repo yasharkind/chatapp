@@ -204,6 +204,7 @@ func NewMessageController (config *appconfig.Config, messageService service.Mess
 	c := MessageController{
 		config: config,
 		messageService: messageService,
+		userService: userService,
 	}
 	http.Handle("/auth", middlewares.CorsMiddleware(http.HandlerFunc(c.handleMessageHistory)))
 	http.Handle("/deletemessage", middlewares.CorsMiddleware(http.HandlerFunc(c.handleDeleteMessage)))
