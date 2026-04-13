@@ -5,6 +5,7 @@ import (
 	"chatapp/dao"
 	"chatapp/objects"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -18,6 +19,7 @@ type UserService interface {
 	FindByUsernameAndPassword(username string, password string) (*objects.User, error)
 	DeleteById(int) error
 	JWTByUsernameAndPassword(string, string) (string, error)
+	Validate(cookie string) *objects.User
 }
 
 type userService struct {
@@ -105,6 +107,41 @@ func (service *userService) JWTByUsernameAndPassword(username string, password s
 	}
 	return tokenString, nil
 }
+
+
+func (service *userService) Validate(cookie string) *objects.User {
+		if cookie == "" {
+			return nil
+		}
+		token, err := jwt.Parse(cookie, func(token *jwt.Token) (any, error) {
+			if _,ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method %v", token.Header["alg"])
+			}
+	
+			return service.config.Secret, nil;
+		})
+		if token == nil {
+			return nil
+		}
+		claims, _ := token.Claims.(jwt.MapClaims)
+
+		if claims["sub"] == nil || claims["exp"] == nil {
+			fmt.Println("token invalid", token)
+			return nil
+		}
+	
+		user, err := service.FindById(int(claims["sub"].(float64)))
+		t2 := time.Unix(int64(claims["exp"].(float64)), 0)
+		if err != nil {
+			log.Printf("validate error %s", err)
+		}
+		expired := t2.Unix() <= time.Now().Unix() 
+		if user != nil && !expired {
+			return user
+		}
+		println(expired)
+		return nil
+	}
 
 func NewUserService(config *appconfig.Config) UserService {
 	return &userService{userDao : dao.NewUserDao(config), config: config}

@@ -1,6 +1,9 @@
 package dto_out
 
-import "chatapp/dto/in/opcodes"
+import (
+	"chatapp/dto/in/opcodes"
+	"chatapp/objects"
+)
 
 type WebSockRes interface {
 	OpCode() int
@@ -45,4 +48,8 @@ type Auth struct {
 	// OpCode int `json:"op_code"`
 	Token	 string	   `json:"token"`
 	Messages []SendMessage `json:"messages"`
+}
+
+type Denpa struct {
+	Denpas []objects.Denpa `json:"denpas"`
 }

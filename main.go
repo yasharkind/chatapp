@@ -2,6 +2,7 @@ package main
 
 import (
 	"chatapp/base/appconfig"
+	controller "chatapp/controllers"
 	"chatapp/dto/in"
 	"chatapp/dto/in/opcodes"
 	"chatapp/dto/out"
@@ -32,18 +33,30 @@ type Server struct {
 
 	userService service.UserService
 
+	userController controller.UserController
+
+	messageController controller.MessageController
+
+	denpaController controller.DenpaController
+
 	config *appconfig.Config
 	
 	hostname string
 }
 
 func NewServer(config *appconfig.Config) *Server {
+
+	usersrv := service.NewUserService(config)
+	msgsrv :=  service.NewMessageService(config)
 	
 	s := &Server{
 		config: config,
 		conns: make(map[*websocket.Conn]string),
-		messageService: service.NewMessageService(config),
-		userService: service.NewUserService(config),
+		messageService: msgsrv,
+		userService: usersrv,
+		userController: *controller.NewUserController(config, usersrv),
+		messageController: *controller.NewMessageController(config, msgsrv, usersrv),
+		denpaController: *controller.NewDenpaController(config, service.NewUserService(config)),
 	}
 
 	if (s.config.Server.TLS) {
@@ -93,7 +106,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	os.ReadDir("uploads/")
 	token := r.FormValue("token")
 
-	user := middlewares.Validate(token, s.config.Secret, s.userService)
+	user := s.userService.Validate(token)
 
 	if err != nil {
 		fmt.Println("formfile error: ", err)
@@ -141,10 +154,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 			Avatar: savedmsg.Sender.Avatar,
 		}
 	fmt.Println("uplaoded file: ", filename)
-	//marshaled, err := json.Marshal(resMsg)
-	//if err != nil {
-	//	fmt.Println("marshal err: ", err)	
-	//}
 
 	s.mu.Unlock()
 	s.broadcast(&resMsg)
@@ -164,7 +173,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 			break
 		}
 
-		user := middlewares.Validate(msg.Token, s.config.Secret, s.userService)
+		user := s.userService.Validate(msg.Token)
 
 		if user == nil {
 			fmt.Println("user not found")
@@ -230,7 +239,7 @@ func (s *Server) broadcast(r dto_out.WebSockRes) {
 
 	for ws := range s.conns {
 		go func(ws *websocket.Conn) {
-			if user := middlewares.Validate(s.conns[ws], s.config.Secret, s.userService); user == nil {
+			if user := s.userService.Validate(s.conns[ws]); user == nil {
 				s.mu.Lock()
 				fmt.Printf("Unauthorized WS: %s != %s\n", s.conns[ws], s.conns[ws])
 				ws.Close()
@@ -268,247 +277,16 @@ func serveFilesHandler(w http.ResponseWriter, r *http.Request) {
 	fs.ServeHTTP(w, r)
 }
 
-func (s *Server) handleMessageHistory(w http.ResponseWriter, r *http.Request) {
-	token := strings.Join(r.Header["Authorization"], "")
-	if (token == "") {
-		fmt.Println("token is empty")
-		return
-	}
-	user := middlewares.Validate(token, s.config.Secret, s.userService)
-	if user == nil {
-		fmt.Println("user not found")
-		return
-	}
-	s.mu.Lock()
-	messageList := s.messageService.FindByLimitOffset(s.config.Server.MessageLimit, 0)
-	
-	var messageDtos []dto_out.SendMessage
-	for _, message := range messageList {
-		messageDtos = append(messageDtos, dto_out.SendMessage{
-			Id: message.Id,
-			Sender: message.Sender.Username,
-			SenderId: message.Sender.Id,
-			Content: message.Content,
-			Avatar: message.Sender.Avatar,
-			Time: message.Time.Local().Format("15:04:05"),
-		})
-	}
-	dto := dto_out.Auth{
-		Token: token,
-		Messages: messageDtos,
-	}
-	marshaled, err := json.Marshal(dto)
-	if err != nil {
-		fmt.Println("marshal error: ", err)
-	}
-	if _, err := w.Write(marshaled); err != nil {
-		fmt.Println("write error: ", err)
-	}
-	s.mu.Unlock()
-}
-
-func (s *Server) handleLoadMoreMessages(w http.ResponseWriter, r *http.Request) {
-	token := strings.Join(r.Header["Authorization"], "")
-
-	user := middlewares.Validate(token, s.config.Secret, s.userService)
-
-	if user == nil {
-		w.WriteHeader(403)
-		return
-	}
-
-	offset, err := strconv.Atoi(r.PathValue("offset"))
-
-	if err != nil {
-		w.WriteHeader(401)
-		return
-	}
-	messages := s.messageService.FindByLimitOffset(s.config.Server.MessageLimit, offset * s.config.Server.MessageLimit)
-
-	var dto []dto_out.SendMessage
-	for _, message := range messages {
-		obj := dto_out.SendMessage{
-			Id: message.Id,
-			Sender: message.Sender.Username,
-			SenderId: message.Sender.Id,
-			Content: message.Content,
-			Avatar: message.Sender.Avatar,
-			Time: message.Time.Local().Format("15:04:05") ,
-		}
-		dto = append(dto, obj)
-	}
-
-	marshaled, err := json.Marshal(dto)
-	if err != nil {
-		println("/messages marshal error: ", err)
-	}
-
-	w.Write(marshaled)
-}
-
-func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request){
-	var user_dto *dto_in.User
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&user_dto); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Println("decode error: ", err)
-		return
-	}
-	token, err := s.userService.JWTByUsernameAndPassword(user_dto.Username, user_dto.Password)
-	if err != nil {
-		fmt.Println("jwt error: ", err)
-		w.WriteHeader(403)
-	}
-	w.Write([]byte(token))
-}
-
-func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
-	var token = strings.Join(r.Header["Authorization"], "")
-	user := middlewares.Validate(token, s.config.Secret, s.userService)
-	if user == nil {
-		w.WriteHeader(404)
-		return
-	}
-	res := dto_out.User{
-		Id: user.Id,
-		Username: user.Username,
-		Avatar: user.Avatar,
-	}
-	marshaled, err := json.Marshal(res)
-	if err != nil {
-		println(err)
-		w.WriteHeader(401)
-		return
-	}
-	w.Write(marshaled)
-}
-
-func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		w.WriteHeader(404)
-		return
-	}
-	var token = strings.Join(r.Header["Authorization"], "")
-	user := middlewares.Validate(token, s.config.Secret, s.userService)
-	if user == nil {
-		w.WriteHeader(404)
-		return
-	}
-	var dto dto_in.DeleteMessage
-	decoder := json.NewDecoder(r.Body)
-	decoder.Decode(&dto)
-
-	message, err := s.messageService.FindById(dto.MessageId)
-	if err != nil{
-		println("DeleteMessage error 1: ", err)
-		w.WriteHeader(401)
-		return
-	}
-	if (message.Sender.Id != user.Id) {
-		println("DeleteMessage error 2: no permission ", message.Sender.Id, user.Id)
-		w.WriteHeader(403)
-		return
-	}
-	err = s.messageService.DeleteById(dto.MessageId)
-	if err != nil {
-		println("DeleteMessage error 3: ", err)
-		w.WriteHeader(401)
-		return
-	}
-	response := &dto_out.DeleteMessage{
-		Action: opcodes.DeleteMessage,
-		Id: dto.MessageId,
-	}
-
-	log := fmt.Sprintf("%s-%s: Deleted Message %d", time.Now().Local(), user.Username, dto.MessageId)
-	println(log)
-	s.broadcast(response)
-	w.WriteHeader(200)
-}
-
-func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		w.WriteHeader(404)
-		return
-	}
-	var token = strings.Join(r.Header["Authorization"], "")
-	user := middlewares.Validate(token, s.config.Secret, s.userService)
-	if user == nil {
-		w.WriteHeader(404)
-		return
-	}
-	var dto dto_in.EditMessage
-	decoder := json.NewDecoder(r.Body)
-	decoder.Decode(&dto)
-
-	message, err := s.messageService.FindById(dto.MessageId)
-	if err != nil{
-		println("DeleteMessage error 1: ", err)
-		w.WriteHeader(401)
-		return
-	}
-	if (message.Sender.Id != user.Id) {
-		println("DeleteMessage error 2: no permission ", message.Sender.Id, user.Id)
-		w.WriteHeader(403)
-		return
-	}
-	newmsg := objects.Message{
-		Id: message.Id,
-		Content: dto.NewContent,
-		Sender: message.Sender,
-		Time: message.Time,
-	}
-	msg, err := s.messageService.UpdateById(dto.MessageId, newmsg)
-	if err != nil {
-		println("DeleteMessage error 3: ", err)
-		w.WriteHeader(401)
-		return
-	}
-	response := &dto_out.EditMessage{
-		Action: opcodes.EditMessage,
-		Id: dto.MessageId,
-		NewContent: msg.Content,
-	}
-
-	log := fmt.Sprintf("%s-%s: Edited Message %d content: %s", time.Now().Local(), user.Username, dto.MessageId, dto.NewContent)
-	println(log)
-	s.broadcast(response)
-	w.WriteHeader(200)
-}
-
 func main(){
-	corsMiddleware := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-			if r.Method == "OPTIONS" {
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
 	config, err := appconfig.NewConfig("conf/app_cfg.yml")
 	if err != nil {
 		fmt.Println("error loading config: ", err)
 	}
 	server := NewServer(config)
 	http.Handle("/ws", websocket.Handler(server.handleWS))
-	http.Handle("/upload", corsMiddleware(http.HandlerFunc(server.handleUpload)))
-	http.Handle("/files/", corsMiddleware(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads")))))
+	http.Handle("/upload", middlewares.CorsMiddleware(http.HandlerFunc(server.handleUpload)))
+	http.Handle("/files/", middlewares.CorsMiddleware(http.StripPrefix("/files/", http.FileServer(http.Dir("uploads")))))
 
-	http.Handle("/avatar/", corsMiddleware(http.StripPrefix("/avatar/", http.FileServer(http.Dir("avatars")))))
-
-	http.Handle("/auth", corsMiddleware(http.HandlerFunc(server.handleMessageHistory)))
-	http.Handle("/login", corsMiddleware(http.HandlerFunc(server.handleLogin)))
-
-	http.Handle("/user", corsMiddleware(http.HandlerFunc(server.handleUser)))
-	http.Handle("/deletemessage", corsMiddleware(http.HandlerFunc(server.handleDeleteMessage)))
-	http.Handle("/editmessage", corsMiddleware(http.HandlerFunc(server.handleEditMessage)))
-	http.Handle("GET /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
-	http.Handle("OPTIONS /message/{offset}", corsMiddleware(http.HandlerFunc(server.handleLoadMoreMessages)))
 
 	port := fmt.Sprintf(":%d", server.config.Server.Port)
 	fmt.Println("Listening on port " + port)
