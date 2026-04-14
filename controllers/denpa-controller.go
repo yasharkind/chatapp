@@ -28,7 +28,7 @@ func NewDenpaController(config *appconfig.Config, userService service.UserServic
 	}
 
 	http.Handle("/denpa",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleDenpa)))
-	http.Handle("/denpa/", middlewares.CorsMiddleware(http.StripPrefix("/denpa/", http.FileServer(http.Dir("denpa")))))
+	http.Handle("/denpas/", middlewares.CorsMiddleware(http.StripPrefix("/denpas/", http.FileServer(http.Dir("denpa")))))
 
 	return &c
 }
