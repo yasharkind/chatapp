@@ -200,11 +200,12 @@ func (c *MessageController) handleLoadMoreMessages(w http.ResponseWriter, r *htt
 
 
 
-func NewMessageController (config *appconfig.Config, messageService service.MessageService, userService service.UserService) *MessageController{
+func NewMessageController (config *appconfig.Config, messageService service.MessageService, userService service.UserService, broadcast func(dto_out.WebSockRes)) *MessageController{
 	c := MessageController{
 		config: config,
 		messageService: messageService,
 		userService: userService,
+		broadcast: broadcast,
 	}
 	http.Handle("/auth", middlewares.CorsMiddleware(http.HandlerFunc(c.handleMessageHistory)))
 	http.Handle("/deletemessage", middlewares.CorsMiddleware(http.HandlerFunc(c.handleDeleteMessage)))

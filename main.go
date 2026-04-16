@@ -55,9 +55,11 @@ func NewServer(config *appconfig.Config) *Server {
 		messageService: msgsrv,
 		userService: usersrv,
 		userController: *controller.NewUserController(config, usersrv),
-		messageController: *controller.NewMessageController(config, msgsrv, usersrv),
 		denpaController: *controller.NewDenpaController(config, service.NewUserService(config)),
 	}
+
+
+	s.messageController = *controller.NewMessageController(config, msgsrv, usersrv, s.broadcast);
 
 	if (s.config.Server.TLS) {
 		s.hostname = "https://" + config.Server.Host + ":"
