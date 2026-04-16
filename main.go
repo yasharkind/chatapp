@@ -208,10 +208,6 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 				Time: savedmsg.Time.Format("15:04:05"),
 				Avatar: savedmsg.Sender.Avatar,
 			}
-			//marshaled, err := json.Marshal(resMsg)
-			//if err != nil {
-			//	fmt.Println("Error marshaling: ", err)
-			//}
         	
 			if strings.HasPrefix(message.Content, ">profile") {
 				messageSplit := strings.Split(message.Content, " ")
@@ -272,10 +268,6 @@ func (s *Server) broadcast(r dto_out.WebSockRes) {
 	}
 }
 
-func serveFilesHandler(w http.ResponseWriter, r *http.Request) {
-	fs := http.FileServer(http.Dir("./uploads/"))
-	fs.ServeHTTP(w, r)
-}
 
 func main(){
 	config, err := appconfig.NewConfig("conf/app_cfg.yml")

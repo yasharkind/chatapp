@@ -12,6 +12,7 @@ func CorsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == "OPTIONS" {
+				w.WriteHeader(200)
 				return
 			}
 
