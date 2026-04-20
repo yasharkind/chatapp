@@ -37,7 +37,7 @@ func (dao *denpaDao) QueryAll() ([]*objects.Denpa, int, error) {
 	count.Scan(&total)
 
 	rows, err := dao.DAO.Query(
-		"SELECT * FROM denpa",
+		"SELECT * FROM denpa ORDER BY singers",
 	)
 	if err != nil {
 		fmt.Println("Query error: ", err)
