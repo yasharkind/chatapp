@@ -94,10 +94,6 @@ func (s *Server) handleWS(ws *websocket.Conn) {
 
 
 	
-	s.mu.Lock()
-	fmt.Println("ws from: ", address)
-	s.mu.Unlock()
-
 	
 	s.readLoop(ws)
 }
@@ -146,6 +142,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	
 	s.mu.Lock()
 	savedmsg := s.messageService.Save(msg)
+	s.mu.Unlock()
 	resMsg := dto_out.SendMessage{
 			Action: opcodes.SendMessage,
 			Id: savedmsg.Id,
@@ -157,7 +154,6 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	fmt.Println("uplaoded file: ", filename)
 
-	s.mu.Unlock()
 	s.broadcast(&resMsg)
 	w.WriteHeader(http.StatusOK)
 }
@@ -201,6 +197,7 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 	
 			s.mu.Lock()
 			savedmsg := s.messageService.Save(*message)
+			s.mu.Unlock()
 			resMsg := dto_out.SendMessage{
 				Action: msg.OpCode,
 				Id: savedmsg.Id,
@@ -216,11 +213,13 @@ func (s *Server) readLoop(ws *websocket.Conn) {
 				if len(messageSplit) == 2 {
 					url := messageSplit[1]
 					user.Avatar = url
+
+					s.mu.Lock()
 					s.userService.UpdateById(user.Id, *user)
+					s.mu.Unlock()
 				}
 			}
         	
-			s.mu.Unlock()
 
 			jsonMsg := fmt.Sprintf("%s-%s: %s", time.Now().Local(), user.Username, msg.Content)
 			fmt.Println(jsonMsg)
@@ -238,10 +237,10 @@ func (s *Server) broadcast(r dto_out.WebSockRes) {
 	for ws := range s.conns {
 		go func(ws *websocket.Conn) {
 			if user := s.userService.Validate(s.conns[ws]); user == nil {
-				s.mu.Lock()
 				fmt.Printf("Unauthorized WS: %s != %s\n", s.conns[ws], s.conns[ws])
 				ws.Close()
 
+				s.mu.Lock()
 				delete(s.conns, ws)
 				s.mu.Unlock()
 				return

@@ -39,6 +39,7 @@ func (c *MessageController) handleMessageHistory(w http.ResponseWriter, r *http.
 	}
 	c.mu.Lock()
 	messageList := c.messageService.FindByLimitOffset(c.config.Server.MessageLimit, 0)
+	c.mu.Unlock()
 	
 	var messageDtos []dto_out.SendMessage
 	for _, message := range messageList {
@@ -62,7 +63,6 @@ func (c *MessageController) handleMessageHistory(w http.ResponseWriter, r *http.
 	if _, err := w.Write(marshaled); err != nil {
 		fmt.Println("write error: ", err)
 	}
-	c.mu.Unlock()
 }
 
 func (c *MessageController) handleEditMessage(w http.ResponseWriter, r *http.Request) {
