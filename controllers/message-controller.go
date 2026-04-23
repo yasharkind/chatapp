@@ -74,6 +74,7 @@ func (c *MessageController) handleSendMessage(w http.ResponseWriter, r *http.Req
 	user := c.userService.Validate(token)
 	if user == nil {
 		w.WriteHeader(403)
+		println("POST /message user not found")
 		return
 	}
 	var dto dto_in.SendMessage
@@ -85,9 +86,9 @@ func (c *MessageController) handleSendMessage(w http.ResponseWriter, r *http.Req
 		Content: dto.Content,
 		Sender: user,
 	}
-
+	c.mu.Lock()
 	message := c.messageService.Save(msg)
-
+	c.mu.Unlock()
 	wsR := dto_out.SendMessage{
 		Action: opcodes.SendMessage,
 		Id: message.Id,
@@ -247,7 +248,7 @@ func NewMessageController (config *appconfig.Config, messageService service.Mess
 	http.Handle("/deletemessage", middlewares.CorsMiddleware(http.HandlerFunc(c.handleDeleteMessage)))
 	http.Handle("/editmessage",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleEditMessage)))
 	http.Handle("GET /message/{offset}",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleLoadMoreMessages)))
-	http.Handle("PUT /message",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleSendMessage)))
+	http.Handle("POST /message",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleSendMessage)))
 	http.Handle("OPTIONS /message/{offset}",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleLoadMoreMessages)))
 
 	return &c
