@@ -12,6 +12,10 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+type SendMessage struct {
+	Content string `json:"content"`
+}
+
 type DeleteMessage struct {
 	MessageId int `json:"message_id"`
 }

@@ -65,6 +65,42 @@ func (c *MessageController) handleMessageHistory(w http.ResponseWriter, r *http.
 	}
 }
 
+func (c *MessageController) handleSendMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(404)
+		return
+	}
+	var token = strings.Join(r.Header["Authorization"], "")
+	user := c.userService.Validate(token)
+	if user == nil {
+		w.WriteHeader(403)
+		return
+	}
+	var dto dto_in.SendMessage
+	decoder := json.NewDecoder(r.Body)
+	decoder.Decode(&dto)
+	msg := objects.Message{
+		Id: 0,
+		Time: time.Now().Local(),
+		Content: dto.Content,
+		Sender: user,
+	}
+
+	message := c.messageService.Save(msg)
+
+	wsR := dto_out.SendMessage{
+		Action: opcodes.SendMessage,
+		Id: message.Id,
+		Sender: user.Username,
+		SenderId: user.Id,
+		Content: message.Content,
+		Avatar: user.Avatar,
+		Time: message.Time.Local().Format("15:04:05"),
+	}
+
+	c.broadcast(&wsR)
+}
+
 func (c *MessageController) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(404)
@@ -73,7 +109,7 @@ func (c *MessageController) handleEditMessage(w http.ResponseWriter, r *http.Req
 	var token = strings.Join(r.Header["Authorization"], "")
 	user := c.userService.Validate(token)
 	if user == nil {
-		w.WriteHeader(404)
+		w.WriteHeader(403)
 		return
 	}
 	var dto dto_in.EditMessage
@@ -211,6 +247,7 @@ func NewMessageController (config *appconfig.Config, messageService service.Mess
 	http.Handle("/deletemessage", middlewares.CorsMiddleware(http.HandlerFunc(c.handleDeleteMessage)))
 	http.Handle("/editmessage",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleEditMessage)))
 	http.Handle("GET /message/{offset}",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleLoadMoreMessages)))
+	http.Handle("PUT /message",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleSendMessage)))
 	http.Handle("OPTIONS /message/{offset}",  middlewares.CorsMiddleware(http.HandlerFunc(c.handleLoadMoreMessages)))
 
 	return &c
