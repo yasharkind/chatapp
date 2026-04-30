@@ -139,6 +139,6 @@ POST /deletemessage body: {"message_id": "message_id"} headers: {"Authorization"
 ```json
 {
     "op_code": 2, // means delete message
-    "id": "edited_message_id"
+    "id": "deleted_message_id"
 }
 ```
